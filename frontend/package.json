@@ -1,0 +1,28 @@
+{
+  "name": "placement-preparation-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4174 --strictPort --configLoader native",
+    "build": "vite build --configLoader native",
+    "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort --configLoader native",
+    "predev": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/start-local.ps1"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.0.0",
+    "axios": "^1.8.0",
+    "lucide-react": "^0.468.0",
+    "recharts": "^3.0.0",
+    "@uiw/react-codemirror": "^4.23.0",
+    "@codemirror/lang-python": "^6.1.0",
+    "@codemirror/lang-java": "^6.0.0",
+    "@codemirror/lang-cpp": "^6.0.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "@vitejs/plugin-react": "^4.7.0"
+  }
+}

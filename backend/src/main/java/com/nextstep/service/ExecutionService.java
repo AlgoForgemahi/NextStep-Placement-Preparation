@@ -1,0 +1,18 @@
+package com.nextstep.service;
+import java.net.URI;
+import java.net.http.*;
+import java.time.Duration;
+import java.util.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.JsonNode;
+@Service public class ExecutionService {
+ final String url,key;final JsonService json;final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+ public ExecutionService(@Value("${execution.url}") String url,@Value("${execution.key}") String key,JsonService json){this.url=url;this.key=key;this.json=json;}
+ public boolean configured(){return !url.isBlank();}
+ HttpRequest.Builder request(String suffix){var b=HttpRequest.newBuilder(URI.create(url.replaceAll("/$","")+suffix)).timeout(Duration.ofSeconds(10)).header("Content-Type","application/json");if(!key.isBlank())b.header("X-Auth-Token",key);return b;}
+ public Map<String,Object> execute(String code,String language,JsonNode tests,boolean sampleOnly){if(!configured())return Map.of("status","NOT_CONFIGURED","message","Secure code execution is not configured. No code was executed.","tests",List.of());var ids=Map.of("Python",71,"Java",62,"C",50,"C++",54);if(!ids.containsKey(language))throw new IllegalArgumentException("Unsupported language");try{var results=new ArrayList<Map<String,Object>>();boolean accepted=true;for(JsonNode test:tests){var body=Map.of("source_code",Base64.getEncoder().encodeToString(code.getBytes(java.nio.charset.StandardCharsets.UTF_8)),"language_id",ids.get(language),"stdin",Base64.getEncoder().encodeToString(test.path("input").asText().getBytes(java.nio.charset.StandardCharsets.UTF_8)),"expected_output",Base64.getEncoder().encodeToString(test.path("output").asText().getBytes(java.nio.charset.StandardCharsets.UTF_8)),"cpu_time_limit",2,"wall_time_limit",5,"memory_limit",128000,"enable_network",false);
+ var response=http.send(request("/submissions?base64_encoded=true&wait=false").POST(HttpRequest.BodyPublishers.ofString(json.write(body))).build(),HttpResponse.BodyHandlers.ofString());if(response.statusCode()!=201)throw new IllegalStateException();String token=json.read(response.body()).path("token").asText();if(!token.matches("[a-zA-Z0-9-]+"))throw new IllegalStateException();JsonNode result=null;for(int i=0;i<15;i++){Thread.sleep(400);var poll=http.send(request("/submissions/"+token+"?base64_encoded=true").GET().build(),HttpResponse.BodyHandlers.ofString());if(poll.statusCode()!=200)throw new IllegalStateException();result=json.read(poll.body());if(result.path("status").path("id").asInt()>2)break;}if(result==null)throw new IllegalStateException("Execution provider returned no result.");int status=result.path("status").path("id").asInt();accepted &= status==3;var item=new LinkedHashMap<String,Object>();item.put("status",result.path("status").path("description").asText("Unknown"));for(String field:List.of("stdout","stderr","compile_output")){String raw=result.path(field).asText("");item.put(field,raw.isBlank()?"":new String(Base64.getDecoder().decode(raw),java.nio.charset.StandardCharsets.UTF_8));}results.add(item);if(sampleOnly)break;}
+ return Map.of("status",accepted?(sampleOnly?"SAMPLE_PASSED":"ACCEPTED"):"NOT_ACCEPTED","tests",results,"message",sampleOnly?"Sample execution completed.":"Evaluated against the configured problem test cases.");
+ }catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();return Map.of("status","PROVIDER_ERROR","message","Execution service did not return a valid result. No acceptance was recorded.","tests",List.of());}}
+}
